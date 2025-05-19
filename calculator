@@ -1,9 +1,11 @@
-
 import pandas as pd
 import tkinter as tk
 from tkinter import messagebox, Label
 from tkinter.filedialog import askopenfilename
 from l_squares import *
+import matplotlib.pyplot as plt
+import sympy as sp
+
 
 data = None
 
@@ -55,7 +57,9 @@ def process_file_data():
             x = np.array(data["x"].values)
             y = np.array(data["y"].values)
             a, b = find_least_sqrt(x, y)
-            messagebox.showinfo("Результат", f"Коефіцієнти:\na = {a:.4f}\nb = {b:.4f}")
+            a2, b2 = find_least_sqrt(x, y)
+            messagebox.showinfo("Результат", f"Коефіцієнти:\na = {a:.4f}\nb = {b:.4f}\na2 = {a2:.4f}\nb2 = {b2:.4f}")
+            #messagebox.showinfo("Результат", f"Коефіцієнти:\na2 = {a2:.4f}\nb2 = {b2:.4f}")
 
         except Exception as e:
             messagebox.showerror("Помилка", f"Помилка обробки даних: {e}")
@@ -83,12 +87,76 @@ def load_data_from_text():
         print("X:", x)
         print("Y:", y)
 
-        a, b = find_least_sqrt(np.array(x), np.array(y))
-        messagebox.showinfo("Результат", f"Коефіцієнти:\na = {a:.4f}\nb = {b:.4f}")
+        a, b, = find_least_sqrt(np.array(x), np.array(y))
+        a2, b2 = find_least_sqrt(np.array(x), np.array(y))
+        messagebox.showinfo("Результат", f"Коефіцієнти:\na = {a:.4f}\nb = {b:.4f}\na2 = {a2:.4f}\nb2 = {b2:.4f}")
+        #####
+        #messagebox.showinfo("Результат", f"Коефіцієнти:\na2 = {a2:.4f}\nb2 = {b2:.4f}")
+
 
 
     except Exception as e:
         messagebox.showerror("Помилка", f"Неправильний формат даних: {e}")
+
+
+def load_function_from_file():
+    file_path = askopenfilename(
+        title="Оберіть файл з функцією",
+        filetypes=[("текстові файли", "*.txt")]
+    )
+    if not file_path:
+        return
+
+    try:
+        with open(file_path, "r") as f:
+            func_str = f.read().strip()
+        function_label.config(text="функція: " + func_str)
+        global load_function
+        load_function = func_str
+        button_analyze_function.place(x=300, y=400)
+    except Exception as e:
+        messagebox.showerror("Помилка", f"Не вдалося прочитати функцію: {e}")
+
+
+def process_function():
+    if function_entry.get():
+        func_str = function_entry.get()
+    else:
+        func_str = load_function  # з файлу
+
+    try:
+        # Перетворення на sympy функцію
+        x = sp.symbols('x')
+        if '=' in func_str:
+            func_str = func_str.split('=')[1]  # залишити тільки частину після '='
+
+        poly = sp.sympify(func_str.replace("^", "**").strip())
+
+        func = sp.lambdify(x, poly, modules=["numpy"])
+        deriv = sp.diff(poly, x)
+        crit_points = sp.solve(deriv, x)
+        crit_values = [func(float(p)) for p in crit_points if p.is_real]
+
+        # Побудова графіка
+        x_vals = np.linspace(min(map(float, crit_points)) - 5, max(map(float, crit_points)) + 5, 400)
+        y_vals = func(x_vals)
+        plt.figure(figsize=(7, 5))
+        plt.plot(x_vals, y_vals, label="f(x)")
+        plt.scatter([float(p) for p in crit_points if p.is_real], crit_values, color='red', label='екстремуми')
+        plt.title("Функція та її екстремуми")
+        plt.xlabel("x")
+        plt.ylabel("f(x)")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+        # Запис у файл
+        with open("functions_res.txt", "a", encoding="utf-8") as f:
+            f.write(f"Функція: {poly}\n")
+            f.write(f"Екстремуми: {[(float(p), func(float(p))) for p in crit_points if p.is_real]}\n\n")
+
+    except Exception as e:
+        messagebox.showerror("Помилка", f"Не вдалося обробити функцію: {e}")
 
 
 # змінення висоти вікна
@@ -110,6 +178,7 @@ def adjust_text_height(event=None):
 def handle_paste(event=None):
     root.after(50, lambda: adjust_text_height(event))
     return None
+
 
 def go_back_to_main():
     # Ховаємо всі динамічні елементи
@@ -144,6 +213,9 @@ def show_manual_input():
     entry2.place(x=425, y=75, width=350)
     button_send.place(x=575, y=300)
     back_button_manual.place(x=25, y=300)
+    button_back_function.place(x=350, y=700)  # або інше зручне місце
+    button_function_file.place_forget()
+    button_function_manual.place_forget()
 
 
 # Дії при натисканні на "вибрати файл"
@@ -154,7 +226,58 @@ def choose_file_and_hide_text_button():
     x_data_label.place(x=25, y=50)
     y_data_label.place(x=25, y=100)
     back_button_file.place(x=25, y=300)
+    button_function_file.place_forget()
+    button_function_manual.place_forget()
+
     open_file()
+
+def open_function_file():
+    # Сховати зайві кнопки
+    button_text.place_forget()
+    button_files.place_forget()
+    button_function_file.place_forget()
+    button_function_manual.place_forget()
+
+    # Показати кнопку повернення
+    button_back_function.place(x=350, y=700)
+
+    # Запустити обробку файлу
+    load_function_from_file()
+
+def show_function_input():
+    # Сховати зайві кнопки
+    button_text.place_forget()
+    button_files.place_forget()
+    button_function_file.place_forget()
+    button_function_manual.place_forget()
+
+    # Показати кнопку повернення
+    button_back_function.place(x=350, y=700)
+
+    # Показати поле вводу
+    process_function()
+
+def enter_function_manually():
+    button_files.place_forget()
+    button_text.place_forget()
+    button_enter_function_manually.place_forget()
+    button_load_function_file.place_forget()
+    function_entry.place(x=200, y=250, width=400)
+    button_analyze_function.place(x=300, y=400)
+
+def show_start_page():
+    # показати початкові кнопки
+    button_text.place(x=250, y=100)
+    button_files.place(x=450, y=100)
+    button_function_file.place(x=250, y=150)
+    button_function_manual.place(x=450, y=150)
+
+    # сховати всі інші елементи
+    for widget in root.winfo_children():
+        if widget not in [label, button_text, button_files, button_function_file, button_function_manual]:
+            widget.place_forget()
+
+
 
 
 # Головне вікно
@@ -164,6 +287,10 @@ root.geometry("800x800")
 
 label = Label(root, text="натисніть кнопку щоб вибрати файл або введіть дані вручну")
 label.pack()
+
+function_entry = tk.Entry(root, font=("Arial", 14))
+function_label = tk.Label(root, text="", font=("Arial", 12))
+function_label.pack()
 
 # Кнопки вибору
 button_files = tk.Button(root, text="вибрати файл", command=choose_file_and_hide_text_button)
@@ -181,6 +308,27 @@ button_send2 = tk.Button(root, text="завантажити дані", command=p
 # Кнопки "повернутися"
 back_button_manual = tk.Button(root, text="повернутися на попередню сторінку", command=go_back_to_main)
 back_button_file = tk.Button(root, text="повернутися на попередню сторінку", command=go_back_to_main)
+
+#кнопки для обробки функцій
+button_load_function_file = tk.Button(root, text="завантажити функцію з файлу", command=load_function_from_file)
+button_load_function_file.place(x=250, y=150)
+
+button_enter_function_manually = tk.Button(root, text="ввести функцію вручну", command=enter_function_manually)
+button_enter_function_manually.place(x=450, y=150)
+
+button_analyze_function = tk.Button(root, text="завантажити функцію", command=process_function)
+
+button_function_file = tk.Button(root, text="завантажити функцію з файлу", command=open_function_file)
+button_function_manual = tk.Button(root, text="ввести функцію вручну", command=show_function_input)
+
+button_function_file.place(x=250, y=150)
+button_function_manual.place(x=450, y=150)
+
+
+button_back_function = tk.Button(root, text="повернутися на попередню сторінку", command=show_start_page)
+
+
+
 
 
 # Поле X
@@ -216,6 +364,13 @@ root.after(100, lambda: adjust_text_height(type('Event', (object,), {'widget': e
 root.after(100, lambda: adjust_text_height(type('Event', (object,), {'widget': entry2})))
 
 root.mainloop()
+
+
+
+
+
+
+
 
 
 
